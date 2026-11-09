@@ -69,18 +69,18 @@ impl LocalLlmClient {
             .json(&payload)
             .send()
             .await
-            .context("Yerel LLM sunucusuna bağlantı başarısız oldu")?;
+            .context("Failed to connect to local LLM server")?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("LLM API Hatası [{}]: {}", status, body);
+            anyhow::bail!("LLM API Error [{}]: {}", status, body);
         }
 
         let resp_json: ChatCompletionResponse = response
             .json()
             .await
-            .context("LLM yanıtı JSON olarak ayrıştırılamadı")?;
+            .context("Failed to parse LLM response as JSON")?;
 
         let reply = resp_json
             .choices

@@ -24,23 +24,23 @@ impl ToolManager {
     }
 
     pub fn get_tools_description(&self) -> String {
-        r#"- read_file(path): Belirtilen dosyanın içeriğini okur.
-- write_file(path, content): Belirtilen dosyaya metin içeriği yazar veya oluşturur.
-- list_dir(path): Belirtilen dizindeki dosya ve klasörleri listeler.
-- run_command(command): Sistem terminalinde (PowerShell) güvenli bir komut çalıştırır.
-- web_search(query): İnternette (DuckDuckGo üzerinden) ücretsiz arama yapar.
-- transcribe_audio(path): Yerel ses dosyasını (mp3/wav) dinler ve metne dönüştürür."#.to_string()
+        r#"- read_file(path): Reads the full text content of a file.
+- write_file(path, content): Writes or creates a file with the given text content.
+- list_dir(path): Lists all files and subdirectories in the specified path.
+- run_command(command): Executes a system terminal command (PowerShell / Shell).
+- web_search(query): Searches the internet via DuckDuckGo without any API key.
+- transcribe_audio(path): Listens to and transcribes a local audio file (mp3/wav)."#.to_string()
     }
 
     pub async fn execute(&self, tool_name: &str, args: &serde_json::Value) -> Result<String> {
         match tool_name {
             "read_file" => {
-                let path = args["path"].as_str().context("path parametresi eksik")?;
+                let path = args["path"].as_str().context("Missing required parameter: path")?;
                 self.read_file(path)
             }
             "write_file" => {
-                let path = args["path"].as_str().context("path parametresi eksik")?;
-                let content = args["content"].as_str().context("content parametresi eksik")?;
+                let path = args["path"].as_str().context("Missing required parameter: path")?;
+                let content = args["content"].as_str().context("Missing required parameter: content")?;
                 self.write_file(path, content)
             }
             "list_dir" => {
@@ -48,28 +48,28 @@ impl ToolManager {
                 self.list_dir(path)
             }
             "run_command" => {
-                let cmd = args["command"].as_str().context("command parametresi eksik")?;
+                let cmd = args["command"].as_str().context("Missing required parameter: command")?;
                 self.run_command(cmd)
             }
             "web_search" => {
-                let query = args["query"].as_str().context("query parametresi eksik")?;
+                let query = args["query"].as_str().context("Missing required parameter: query")?;
                 self.web_search(query).await
             }
             "transcribe_audio" => {
-                let path = args["path"].as_str().context("path parametresi eksik")?;
+                let path = args["path"].as_str().context("Missing required parameter: path")?;
                 self.audio_processor
-                    .transcribe_and_analyze(path, "Bu ses kaydında tam olarak ne söyleniyor? Metne dök.")
+                    .transcribe_and_analyze(path, "Transcribe this audio recording accurately.")
                     .await
             }
-            _ => anyhow::bail!("Bilinmeyen araç: {}", tool_name),
+            _ => anyhow::bail!("Unknown tool: {}", tool_name),
         }
     }
 
     fn read_file(&self, path_str: &str) -> Result<String> {
         let content = fs::read_to_string(path_str)
-            .with_context(|| format!("Dosya okunamadı: {}", path_str))?;
+            .with_context(|| format!("Failed to read file: {}", path_str))?;
         if content.len() > 4000 {
-            Ok(format!("{}...\n[İçerik çok uzun, ilk 4000 karakter gösterildi]", &content[..4000]))
+            Ok(format!("{}...\n[Content truncated: showing first 4000 characters]", &content[..4000]))
         } else {
             Ok(content)
         }
@@ -82,13 +82,13 @@ impl ToolManager {
             }
         }
         fs::write(path_str, content)
-            .with_context(|| format!("Dosya yazılamadı: {}", path_str))?;
-        Ok(format!("Dosya başarıyla yazıldı: {}", path_str))
+            .with_context(|| format!("Failed to write file: {}", path_str))?;
+        Ok(format!("File successfully written: {}", path_str))
     }
 
     fn list_dir(&self, path_str: &str) -> Result<String> {
         let entries = fs::read_dir(path_str)
-            .with_context(|| format!("Dizin okunamadı: {}", path_str))?;
+            .with_context(|| format!("Failed to read directory: {}", path_str))?;
         let mut results = Vec::new();
         for entry in entries.flatten() {
             let file_name = entry.file_name().to_string_lossy().to_string();
@@ -119,7 +119,7 @@ impl ToolManager {
         if output.status.success() {
             Ok(stdout.to_string())
         } else {
-            Ok(format!("Çıktı:\n{}\nHata:\n{}", stdout, stderr))
+            Ok(format!("Output:\n{}\nError:\n{}", stdout, stderr))
         }
     }
 
@@ -129,7 +129,7 @@ impl ToolManager {
             .timeout(std::time::Duration::from_secs(10))
             .build()?;
 
-        // DuckDuckGo Instant API (Ücretsiz, sınırsız)
+        // DuckDuckGo Instant API (Free, unlimited)
         let url = format!(
             "https://api.duckduckgo.com/?q={}&format=json&no_html=1&skip_disambig=1",
             urlencoding::encode(query)
@@ -142,7 +142,7 @@ impl ToolManager {
 
                 if let Some(abstract_text) = json_data["AbstractText"].as_str() {
                     if !abstract_text.is_empty() {
-                        findings.push(format!("Özet: {}", abstract_text));
+                        findings.push(format!("Abstract: {}", abstract_text));
                     }
                 }
 
@@ -160,12 +160,11 @@ impl ToolManager {
             }
         }
 
-        // Yedek: HTML Arama
+        // Fallback: HTML search
         let html_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
         let html_resp = client.get(&html_url).send().await?;
         let text = html_resp.text().await?;
         
-        // Basit sonuç çıkarma
         let mut clean_snippets = Vec::new();
         for line in text.lines() {
             if line.contains("result__snippet") {
@@ -180,7 +179,7 @@ impl ToolManager {
         }
 
         if clean_snippets.is_empty() {
-            Ok(format!("'{}' için doğrudan web sonucu bulunamadı.", query))
+            Ok(format!("No direct web search results found for '{}'.", query))
         } else {
             Ok(clean_snippets.join("\n---\n"))
         }

@@ -14,7 +14,7 @@ use tools::ToolManager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // .env dosyasını yükle
+    // Load .env configuration
     dotenvy::dotenv().ok();
 
     let api_url = env::var("UNSLOTH_API_URL")
@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     let api_key = env::var("UNSLOTH_API_KEY")
         .unwrap_or_else(|_| "sk-unsloth-1cd1858c8973112cc943332dc8d65c9f".to_string());
     let text_model = env::var("UNSLOTH_MODEL")
-        .unwrap_or_else(|_| "LiquidAI/LFM3-Audio-2B-GGUF".to_string());
+        .unwrap_or_else(|_| "unsloth/Qwen3.5-4B-MTP-GGUF".to_string());
     let audio_model = env::var("UNSLOTH_AUDIO_MODEL")
         .unwrap_or_else(|_| "LiquidAI/LFM3-Audio-2B-GGUF".to_string());
 
@@ -32,15 +32,15 @@ async fn main() -> anyhow::Result<()> {
     println!("📡 API URL:     {}", api_url.cyan());
     println!("🧠 LLM Model:   {}", text_model.yellow());
     println!("🎙️ Audio Model: {}", audio_model.green());
-    println!("⚡ Motor:       {} (Rust 2024 Edition)\n", "Tokio Async".magenta());
+    println!("⚡ Engine:      {} (Rust 2024 Edition)\n", "Tokio Async".magenta());
 
-    // Servisleri başlat
+    // Initialize services
     let llm_client = LocalLlmClient::new(api_url.clone(), api_key.clone(), text_model);
     let audio_proc = Arc::new(AudioProcessor::new(api_url, api_key, audio_model));
     let tool_mgr = ToolManager::new(audio_proc);
     let agent = ReactAgent::new(llm_client, tool_mgr, 8);
 
-    // Komut satırı argümanı kontrolü
+    // CLI Arguments check (one-shot mode)
     let args: Vec<String> = env::args().skip(1).collect();
     if !args.is_empty() {
         let task = args.join(" ");
@@ -48,11 +48,11 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // İnteraktif REPL Modu
-    println!("{}", "💬 İnteraktif Moda Geçildi. Çıkmak için 'q' veya 'exit' yazın.\n".italic().bright_black());
+    // Interactive REPL Mode
+    println!("{}", "💬 Switched to Interactive Mode. Type 'q' or 'exit' to quit.\n".italic().bright_black());
 
     loop {
-        print!("{}", "Ajan > ".bold().green());
+        print!("{}", "Agent > ".bold().green());
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -66,12 +66,12 @@ async fn main() -> anyhow::Result<()> {
         }
 
         if trimmed == "exit" || trimmed == "q" {
-            println!("{}", "Görüşmek üzere! 👋".yellow());
+            println!("{}", "Goodbye! 👋".yellow());
             break;
         }
 
         if let Err(e) = agent.run(trimmed).await {
-            eprintln!("{} {}", "❌ Hata:".bold().red(), e);
+            eprintln!("{} {}", "❌ Error:".bold().red(), e);
         }
     }
 

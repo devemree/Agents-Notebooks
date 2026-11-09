@@ -28,11 +28,11 @@ impl AudioProcessor {
     pub async fn transcribe_and_analyze(&self, file_path: &str, prompt: &str) -> Result<String> {
         let path = Path::new(file_path);
         if !path.exists() {
-            anyhow::bail!("Ses dosyası bulunamadı: {}", file_path);
+            anyhow::bail!("Audio file not found: {}", file_path);
         }
 
         let audio_bytes = std::fs::read(path)
-            .with_context(|| format!("Ses dosyası okunamadı: {}", file_path))?;
+            .with_context(|| format!("Failed to read audio file: {}", file_path))?;
         let audio_b64 = BASE64.encode(&audio_bytes);
 
         let ext = path
@@ -77,22 +77,22 @@ impl AudioProcessor {
             .json(&payload)
             .send()
             .await
-            .context("Ses analizi isteği gönderilemedi")?;
+            .context("Failed to send audio analysis request")?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Ses modeli API hatası [{}]: {}", status, body);
+            anyhow::bail!("Audio model API error [{}]: {}", status, body);
         }
 
         let resp_json: serde_json::Value = response
             .json()
             .await
-            .context("Ses analizi yanıtı ayrıştırılamadı")?;
+            .context("Failed to parse audio analysis response")?;
 
         let content = resp_json["choices"][0]["message"]["content"]
             .as_str()
-            .unwrap_or("Metin ayrıştırılamadı")
+            .unwrap_or("Failed to extract transcription")
             .to_string();
 
         Ok(content)
