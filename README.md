@@ -40,6 +40,30 @@ This repository showcases multiple agent systems and LangGraph workflow examples
 
 ## 🎯 Featured Projects
 
+### 🦀 Rust Local AI Agent (Unsloth + ReAct + Audio)
+
+A high-performance autonomous agent written in modern **Rust (2024 Edition)** with **Tokio Async**. Powered 100% locally by **Unsloth Studio** (Qwen 3.5 4B & LFM3-Audio) with zero cloud API keys and near-zero memory footprint (~10 MB RAM).
+
+**✨ Features:**
+- ⚡ **Pure Rust Performance:** Async execution with Tokio, type-safe error handling and blazing fast execution.
+- 🧠 **Local LLM Engine:** Native integration with local Unsloth Studio (`http://127.0.0.1:8888/v1`), Ollama or vLLM.
+- 🎙️ **Multimodal Audio Reasoning:** End-to-end local speech recognition & audio analysis (`LiquidAI/LFM3-Audio`).
+- 🛠️ **Autonomous ReAct Tools:**
+  - `read_file`, `write_file`, `list_dir`
+  - `run_command` (Terminal / PowerShell execution)
+  - `web_search` (Free local DuckDuckGo instant search)
+  - `transcribe_audio` (Local speech analysis)
+- 💬 **Dual Mode:** Both one-shot task CLI execution and interactive REPL chat mode.
+
+**🚀 Quickstart:**
+```bash
+cd "Rust-Local-Agent"
+cargo run -- "List files in the src folder"
+```
+
+---
+
+
 ### 🎥 YouTube Video QA Agent
 
 The most advanced project: extracts transcripts from YouTube videos and enables smart question-answering with a modern UI.
