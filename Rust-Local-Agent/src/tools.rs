@@ -1,13 +1,15 @@
 use crate::audio::AudioProcessor;
+use crate::client::LocalLlmClient;
+use crate::skill_refiner::SkillRefiner;
 use anyhow::{Context, Result};
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolDefinition {
     pub name: String,
     pub description: String,
@@ -16,20 +18,80 @@ pub struct ToolDefinition {
 
 pub struct ToolManager {
     audio_processor: Arc<AudioProcessor>,
+    tools: Vec<ToolDefinition>,
 }
 
 impl ToolManager {
     pub fn new(audio_processor: Arc<AudioProcessor>) -> Self {
-        Self { audio_processor }
+        let default_tools = vec![
+            ToolDefinition {
+                name: "read_file".to_string(),
+                description: "Reads the full text content of a local file.".to_string(),
+                parameters: "{\"path\": \"string\"}".to_string(),
+            },
+            ToolDefinition {
+                name: "write_file".to_string(),
+                description: "Writes or creates a local file with the specified text content.".to_string(),
+                parameters: "{\"path\": \"string\", \"content\": \"string\"}".to_string(),
+            },
+            ToolDefinition {
+                name: "list_dir".to_string(),
+                description: "Lists all files and subdirectories located inside a directory path.".to_string(),
+                parameters: "{\"path\": \"string\"}".to_string(),
+            },
+            ToolDefinition {
+                name: "run_command".to_string(),
+                description: "Executes a system shell or PowerShell terminal command.".to_string(),
+                parameters: "{\"command\": \"string\"}".to_string(),
+            },
+            ToolDefinition {
+                name: "web_search".to_string(),
+                description: "Searches the live public internet using DuckDuckGo.".to_string(),
+                parameters: "{\"query\": \"string\"}".to_string(),
+            },
+            ToolDefinition {
+                name: "transcribe_audio".to_string(),
+                description: "Listens to and transcribes local audio recordings (mp3, wav).".to_string(),
+                parameters: "{\"path\": \"string\"}".to_string(),
+            },
+        ];
+
+        Self {
+            audio_processor,
+            tools: default_tools,
+        }
+    }
+
+    /// Skill++ Optimizer:
+    /// Re-evaluates each tool against neighbors to add negative boundary definitions and prevent misrouting.
+    pub async fn optimize_with_skill_plus_plus(&mut self, llm: &LocalLlmClient) -> Result<()> {
+        println!("{}", "⚡ [Skill++] Optimizing tool descriptions to eliminate routing ambiguity...".bold().magenta());
+
+        let snapshot = self.tools.clone();
+        for tool in &mut self.tools {
+            let original_desc = tool.description.clone();
+            match SkillRefiner::refine_tool_description(&tool.name, &original_desc, &snapshot, llm).await {
+                Ok(refined) => {
+                    println!("  {} {}:", "✓".green(), tool.name.yellow().bold());
+                    println!("    {} {}", "Original:".bright_black(), original_desc.bright_black());
+                    println!("    {} {}", "Skill++: ".cyan().bold(), refined.white());
+                    tool.description = refined;
+                }
+                Err(e) => {
+                    eprintln!("  {} Failed to refine {}: {}", "✗".red(), tool.name, e);
+                }
+            }
+        }
+        println!("{}", "✨ [Skill++] Optimization complete! Negative routing boundaries active.\n".bold().green());
+        Ok(())
     }
 
     pub fn get_tools_description(&self) -> String {
-        r#"- read_file(path): Reads the full text content of a file.
-- write_file(path, content): Writes or creates a file with the given text content.
-- list_dir(path): Lists all files and subdirectories in the specified path.
-- run_command(command): Executes a system terminal command (PowerShell / Shell).
-- web_search(query): Searches the internet via DuckDuckGo without any API key.
-- transcribe_audio(path): Listens to and transcribes a local audio file (mp3/wav)."#.to_string()
+        self.tools
+            .iter()
+            .map(|t| format!("- {}({}): {}", t.name, t.parameters, t.description))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     pub async fn execute(&self, tool_name: &str, args: &serde_json::Value) -> Result<String> {
@@ -129,7 +191,6 @@ impl ToolManager {
             .timeout(std::time::Duration::from_secs(10))
             .build()?;
 
-        // DuckDuckGo Instant API (Free, unlimited)
         let url = format!(
             "https://api.duckduckgo.com/?q={}&format=json&no_html=1&skip_disambig=1",
             urlencoding::encode(query)
@@ -160,7 +221,6 @@ impl ToolManager {
             }
         }
 
-        // Fallback: HTML search
         let html_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
         let html_resp = client.get(&html_url).send().await?;
         let text = html_resp.text().await?;
