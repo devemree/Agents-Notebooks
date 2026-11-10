@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     let api_url = env::var("UNSLOTH_API_URL")
         .unwrap_or_else(|_| "http://127.0.0.1:8888/v1".to_string());
     let api_key = env::var("UNSLOTH_API_KEY")
-        .unwrap_or_else(|_| "sk-unsloth-1cd1858c8973112cc943332dc8d65c9f".to_string());
+        .unwrap_or_else(|_| "sk-unsloth-2ab2d4bac872bae08d4e5b48560edc8c".to_string());
     let text_model = env::var("UNSLOTH_MODEL")
         .unwrap_or_else(|_| "unsloth/Qwen3.5-4B-MTP-GGUF".to_string());
     let audio_model = env::var("UNSLOTH_AUDIO_MODEL")
